@@ -1,0 +1,42 @@
+name: Update Hall of Fame
+
+on:
+  # 1. Jalan setiap 4 jam (Cron)
+  schedule:
+    - cron: '0 */4 * * *'
+  # 2. Bisa dijalankan manual tombol
+  workflow_dispatch:
+
+permissions:
+  contents: write # Wajib: Untuk push index.html baru
+  pages: write
+  id-token: write
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repo
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Generate Leaderboard
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node generate.js
+
+      - name: Commit & Push Changes
+        run: |
+          git config --global user.name 'Codeijoe Bot'
+          git config --global user.email 'bot@codeijoe.io'
+          git add index.html
+          # Commit hanya jika ada perubahan
+          git diff --quiet && git diff --staged --quiet || git commit -m "chore: update hall of fame data"
+          git push
+
+      # (Opsional) Langsung deploy ke GitHub Pages
+      # Jika kamu setting source Pages ke 'main branch', step ini tidak perlu complex.
