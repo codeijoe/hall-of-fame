@@ -1,64 +1,82 @@
 const fs = require('fs');
 
-// Konfigurasi Target
 const ORG = 'codeijoe';
-const REPO = 'protocol-zero';
 const LABEL = 'mission-completed';
 
-async function fetchWinners() {
-  console.log('📡 Scanning for Engineers...');
+// DAFTAR MISI AKTIF (Tambahkan level baru di sini nanti)
+const MISSIONS = [
+  { id: 'protocol-zero', title: 'Protocol Zero' },
+  { id: 'protocol-one',  title: 'Protocol One' }
+];
+
+async function fetchWinners(repoId) {
+  console.log(`📡 Scanning Sector: ${repoId}...`);
   
-  // Menggunakan GitHub Search API untuk mencari PR yang merged/closed dengan label khusus
-  // Query: repo:codeijoe/protocol-zero is:pr is:closed label:mission-completed
-  const query = `repo:${ORG}/${REPO} is:pr is:closed label:${LABEL}`;
+  const query = `repo:${ORG}/${repoId} is:pr is:closed label:${LABEL}`;
   const url = `https://api.github.com/search/issues?q=${encodeURIComponent(query)}&sort=updated&order=desc`;
 
   try {
     const response = await fetch(url, {
       headers: {
         'User-Agent': 'Codeijoe-Leaderboard',
-        // Token opsional untuk rate limit lebih tinggi (diinject via GitHub Actions)
-        'Authorization': `Bearer ${process.env.GITHUB_TOKEN}` 
+        'Authorization': `Bearer ${process.env.GITHUB_TOKEN}`
       }
     });
 
-    if (!response.ok) throw new Error(`API Error: ${response.status}`);
+    if (!response.ok) {
+        console.warn(`⚠️ Skipped ${repoId}: API Error ${response.status}`);
+        return [];
+    }
     
     const data = await response.json();
-    return data.items; // Array of PRs
+    return (data.items || []).map(pr => ({ ...pr, missionId: repoId })); // Tag data dengan ID Misi
+
   } catch (error) {
-    console.error('❌ Failed to fetch winners:', error);
-    process.exit(1);
+    console.error(`❌ Error scanning ${repoId}:`, error);
+    return [];
   }
 }
 
-function generateHTML(winners) {
-  const winnerRows = winners.map((pr, index) => {
-    const user = pr.user;
-    const date = new Date(pr.closed_at).toLocaleDateString();
-    
-    // Template baris tabel per pemenang
-    return `
-      <tr class="hover:bg-gray-800 transition-colors border-b border-gray-700">
-        <td class="p-4 text-gray-400 font-mono">#${winners.length - index}</td>
-        <td class="p-4 flex items-center gap-3">
-          <img src="${user.avatar_url}" class="w-10 h-10 rounded-full border border-gray-600">
-          <a href="${user.html_url}" class="text-green-400 font-bold hover:underline font-mono" target="_blank">
-            @${user.login}
-          </a>
-        </td>
-        <td class="p-4 text-gray-300 font-mono">Protocol Zero</td>
-        <td class="p-4 text-gray-500 text-sm font-mono">${date}</td>
-        <td class="p-4 text-right">
-          <a href="${pr.html_url}" target="_blank" class="text-blue-400 text-xs border border-blue-400 px-2 py-1 rounded hover:bg-blue-400 hover:text-white transition">
-            PROOF
-          </a>
-        </td>
-      </tr>
-    `;
-  }).join('');
+function generateHTML(allWinners) {
+  let tableContent = '';
 
-  // Template HTML Utuh (Minimalist Dark Mode)
+  if (allWinners.length === 0) {
+      tableContent = `<tr><td colspan="5" class="p-8 text-center text-gray-500 font-mono">No verified engineers yet.</td></tr>`;
+  } else {
+      // Sort berdasarkan waktu kelulusan (terbaru di atas)
+      allWinners.sort((a, b) => new Date(b.closed_at) - new Date(a.closed_at));
+
+      tableContent = allWinners.map((pr, index) => {
+        const user = pr.user;
+        const date = new Date(pr.closed_at).toLocaleDateString();
+        // Cari nama misi yang cantik
+        const missionTitle = MISSIONS.find(m => m.id === pr.missionId)?.title || pr.missionId;
+        
+        return `
+          <tr class="hover:bg-gray-800 transition-colors border-b border-gray-700">
+            <td class="p-4 text-gray-400 font-mono">#${allWinners.length - index}</td>
+            <td class="p-4 flex items-center gap-3">
+              <img src="${user.avatar_url}" class="w-10 h-10 rounded-full border border-gray-600">
+              <a href="${user.html_url}" class="text-green-400 font-bold hover:underline font-mono" target="_blank">
+                @${user.login}
+              </a>
+            </td>
+            <td class="p-4 text-gray-300 font-mono">
+              <span class="bg-gray-700 px-2 py-1 rounded text-xs border border-gray-600">
+                ${missionTitle}
+              </span>
+            </td>
+            <td class="p-4 text-gray-500 text-sm font-mono">${date}</td>
+            <td class="p-4 text-right">
+              <a href="${pr.html_url}" target="_blank" class="text-blue-400 text-xs border border-blue-400 px-2 py-1 rounded hover:bg-blue-400 hover:text-white transition">
+                PROOF
+              </a>
+            </td>
+          </tr>
+        `;
+      }).join('');
+  }
+
   return `
 <!DOCTYPE html>
 <html lang="en">
@@ -67,51 +85,51 @@ function generateHTML(winners) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Codeijoe Hall of Fame</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-        body { background-color: #0d1117; color: #c9d1d9; }
-        .glow { text-shadow: 0 0 10px rgba(74, 222, 128, 0.5); }
-    </style>
+    <style>body { background-color: #0d1117; color: #c9d1d9; }</style>
 </head>
 <body class="p-6 md:p-12 max-w-5xl mx-auto">
     <header class="mb-12 text-center">
         <h1 class="text-4xl font-bold mb-2 tracking-tighter text-white">CODEIJOE<span class="text-green-500">™</span> HALL OF FAME</h1>
         <p class="text-gray-500 font-mono text-sm">WHERE AI ENDS, ENGINEERING BEGINS.</p>
     </header>
-
     <div class="border border-gray-700 rounded-lg overflow-hidden bg-[#161b22] shadow-2xl">
         <table class="w-full text-left border-collapse">
             <thead class="bg-gray-800 text-xs uppercase text-gray-400">
                 <tr>
                     <th class="p-4 font-mono">Rank</th>
                     <th class="p-4 font-mono">Engineer</th>
-                    <th class="p-4 font-mono">Mission</th>
+                    <th class="p-4 font-mono">Mission Cleared</th>
                     <th class="p-4 font-mono">Verified At</th>
                     <th class="p-4 text-right font-mono">Evidence</th>
                 </tr>
             </thead>
             <tbody>
-                ${winnerRows}
+                ${tableContent}
             </tbody>
         </table>
     </div>
-
     <footer class="mt-12 text-center text-xs text-gray-600 font-mono">
         Generated by Codeijoe Automation • Est. 2024
     </footer>
 </body>
-</html>
-  `;
+</html>`;
 }
 
 async function main() {
-  const winners = await fetchWinners();
-  console.log(`✅ Found ${winners.length} verified engineers.`);
+  console.log(`🚀 Starting Multi-Sector Scan...`);
   
-  const html = generateHTML(winners);
+  // Scan semua repo secara paralel
+  const promises = MISSIONS.map(m => fetchWinners(m.id));
+  const results = await Promise.all(promises);
   
-  // Tulis ke file index.html
+  // Gabungkan hasil array of arrays menjadi satu flat array
+  const allWinners = results.flat();
+  
+  console.log(`✅ Total Verified Engineers: ${allWinners.length}`);
+  
+  const html = generateHTML(allWinners);
   fs.writeFileSync('index.html', html);
-  console.log('📄 index.html generated successfully.');
+  console.log('📄 index.html updated.');
 }
 
 main();
