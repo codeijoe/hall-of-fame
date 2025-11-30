@@ -3,7 +3,7 @@ const fs = require('fs');
 const ORG = 'codeijoe';
 const LABEL = 'mission-completed';
 
-// DAFTAR MISI AKTIF (Tambahkan level baru di sini nanti)
+// DAFTAR MISI AKTIF
 const MISSIONS = [
   { id: 'protocol-zero', title: 'Protocol Zero' },
   { id: 'protocol-one',  title: 'Protocol One' }
@@ -29,7 +29,7 @@ async function fetchWinners(repoId) {
     }
     
     const data = await response.json();
-    return (data.items || []).map(pr => ({ ...pr, missionId: repoId })); // Tag data dengan ID Misi
+    return (data.items || []).map(pr => ({ ...pr, missionId: repoId })); 
 
   } catch (error) {
     console.error(`❌ Error scanning ${repoId}:`, error);
@@ -41,32 +41,35 @@ function generateHTML(allWinners) {
   let tableContent = '';
 
   if (allWinners.length === 0) {
-      tableContent = `<tr><td colspan="5" class="p-8 text-center text-gray-500 font-mono">No verified engineers yet.</td></tr>`;
+      tableContent = `<tr><td colspan="4" class="p-8 text-center text-gray-500 font-mono">No verified engineers yet.</td></tr>`;
   } else {
       // Sort berdasarkan waktu kelulusan (terbaru di atas)
       allWinners.sort((a, b) => new Date(b.closed_at) - new Date(a.closed_at));
 
-      tableContent = allWinners.map((pr, index) => {
+      tableContent = allWinners.map((pr) => {
         const user = pr.user;
         const date = new Date(pr.closed_at).toLocaleDateString();
-        // Cari nama misi yang cantik
         const missionTitle = MISSIONS.find(m => m.id === pr.missionId)?.title || pr.missionId;
         
         return `
           <tr class="hover:bg-gray-800 transition-colors border-b border-gray-700">
-            <td class="p-4 text-gray-400 font-mono">#${allWinners.length - index}</td>
             <td class="p-4 flex items-center gap-3">
               <img src="${user.avatar_url}" class="w-10 h-10 rounded-full border border-gray-600">
-              <a href="${user.html_url}" class="text-green-400 font-bold hover:underline font-mono" target="_blank">
-                @${user.login}
-              </a>
+              <div class="flex flex-col">
+                <a href="${user.html_url}" class="text-green-400 font-bold hover:underline font-mono" target="_blank">
+                    @${user.login}
+                </a>
+              </div>
             </td>
+            
             <td class="p-4 text-gray-300 font-mono">
               <span class="bg-gray-700 px-2 py-1 rounded text-xs border border-gray-600">
                 ${missionTitle}
               </span>
             </td>
+            
             <td class="p-4 text-gray-500 text-sm font-mono">${date}</td>
+            
             <td class="p-4 text-right">
               <a href="${pr.html_url}" target="_blank" class="text-blue-400 text-xs border border-blue-400 px-2 py-1 rounded hover:bg-blue-400 hover:text-white transition">
                 PROOF
@@ -96,7 +99,6 @@ function generateHTML(allWinners) {
         <table class="w-full text-left border-collapse">
             <thead class="bg-gray-800 text-xs uppercase text-gray-400">
                 <tr>
-                    <th class="p-4 font-mono">Rank</th>
                     <th class="p-4 font-mono">Engineer</th>
                     <th class="p-4 font-mono">Mission Cleared</th>
                     <th class="p-4 font-mono">Verified At</th>
@@ -117,16 +119,11 @@ function generateHTML(allWinners) {
 
 async function main() {
   console.log(`🚀 Starting Multi-Sector Scan...`);
-  
-  // Scan semua repo secara paralel
   const promises = MISSIONS.map(m => fetchWinners(m.id));
   const results = await Promise.all(promises);
-  
-  // Gabungkan hasil array of arrays menjadi satu flat array
   const allWinners = results.flat();
   
   console.log(`✅ Total Verified Engineers: ${allWinners.length}`);
-  
   const html = generateHTML(allWinners);
   fs.writeFileSync('index.html', html);
   console.log('📄 index.html updated.');
