@@ -6,7 +6,8 @@ const LABEL = 'mission-completed';
 // DAFTAR MISI AKTIF
 const MISSIONS = [
   { id: 'protocol-zero', title: 'Protocol Zero' },
-  { id: 'protocol-one',  title: 'Protocol One' }
+  { id: 'protocol-one',  title: 'Protocol One' },
+  { id: 'protocol-two',  title: 'Protocol Two' }
 ];
 
 async function fetchWinners(repoId) {
